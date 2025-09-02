@@ -3,35 +3,29 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Deriv Trading Client — Admin Controlled</title>
+  <title>Deriv Trading Client</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    body { margin:0; padding:0; background:#0d0d0d; color:#fff; font-family: Arial, sans-serif; }
-    #deriv-login { display:flex; justify-content:center; align-items:center; height:200px; }
-    #deriv-login button { padding:12px 20px; background:#0ff; color:#000; border:none; border-radius:6px; font-size:16px; cursor:pointer; }
-    #deriv-tool { display:none; padding:16px; }
-    .topbar{ display:flex; justify-content:space-between; align-items:center; background:#111; padding:8px 12px; border-bottom:1px solid #222; font-size:13px }
-    .pill{ padding:4px 8px; border-radius:999px; background:#0f172a; color:#0ff; border:1px solid #063; font-weight:700 }
-    .pill.red{ background:#1f0a0a; color:#ff6; border-color:#600 }
-    .container{ display:flex; flex-wrap:wrap; gap:16px }
-    .left{ flex:3; min-width:320px }
-    .right{ flex:1; min-width:220px }
-    .panel{ background:#1a1a1a; border-radius:10px; padding:10px; margin-bottom:16px }
-    .chart-box canvas{ width:100% !important; height:300px !important }
-    label{ font-size:13px; color:#9ad }
-    select,input{ width:100%; box-sizing:border-box; padding:8px; margin:6px 0; background:#111; color:#fff; border:1px solid #333; border-radius:6px }
-    table{ width:100%; border-collapse:collapse; font-size:12px }
-    th,td{ border:1px solid #333; padding:5px; text-align:center }
-    .win{ background:#003300; color:#0f0 }
-    .loss{ background:#330000; color:#f00 }
-    #warningBanner{ position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:#222; color:#fff; padding:12px 18px; border-radius:8px; box-shadow:0 0 10px rgba(0,0,0,.5); display:none }
-    .muted{ color:#9aa; font-size:12px }
-    .lockmask{ position:absolute; inset:0; background:rgba(0,0,0,.35); border-radius:10px; display:none }
-    .rel{ position:relative }
-    /* Connected CR list bottom-right */
-    #crList{ position:fixed; right:14px; bottom:14px; background:rgba(10,10,10,.92); border:1px solid #1f2937; border-radius:12px; padding:10px 12px; min-width:200px; box-shadow:0 8px 24px rgba(0,0,0,.35); font-size:12px; display:none }
-    #crList h4{ margin:0 0 6px 0; font-size:12px; color:#9ad }
-    #crList .tag{ display:inline-block; margin:3px 4px 0 0; padding:3px 8px; border-radius:999px; background:#0f172a; border:1px solid #0a2; color:#8ff }
+    body{margin:0;background:#0d0d0d;color:#fff;font-family:Arial, sans-serif}
+    #deriv-login{display:flex;justify-content:center;align-items:center;height:200px}
+    #deriv-login button{padding:12px 20px;background:#0ff;color:#000;border:none;border-radius:5px;font-size:16px;cursor:pointer}
+    #deriv-tool{display:none;padding:20px}
+    h1{text-align:center;color:#0ff;margin-bottom:12px}
+    .topbar{display:flex;justify-content:space-between;align-items:center;background:#111;padding:8px 12px;font-size:13px}
+    .pill{padding:4px 8px;border-radius:999px;background:#0f172a;color:#0ff;border:1px solid #063;font-weight:700}
+    .container{display:flex;flex-wrap:wrap;gap:20px}
+    .left-panel{flex:3;min-width:300px}
+    .right-panel{flex:1;min-width:220px}
+    .chart-box,.history{background:#1a1a1a;border-radius:10px;padding:10px;margin-bottom:20px}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th,td{border:1px solid #333;padding:5px;text-align:center}
+    .win{background:#003300;color:#0f0}
+    .loss{background:#330000;color:#f00}
+    #crList{position:fixed;right:14px;bottom:14px;background:rgba(10,10,10,.9);border:1px solid #1f2937;border-radius:12px;
+      padding:10px 12px;min-width:180px;box-shadow:0 8px 24px rgba(0,0,0,.35);font-size:12px}
+    #crList h4{margin:0 0 6px 0;font-size:12px;color:#9ad}
+    #crList .tag{display:inline-block;margin:3px 4px 0 0;padding:3px 8px;border-radius:999px;background:#0f172a;
+      border:1px solid #0a2;color:#8ff}
   </style>
 </head>
 <body>
@@ -41,40 +35,31 @@
 
   <div id="deriv-tool">
     <div class="topbar">
-      <div>🧭 <span class="muted">Login:</span> <strong id="loginId">-</strong> &nbsp;|&nbsp;
-        <span class="muted">Balance:</span> <strong id="balance">-</strong> USD
-      </div>
+      <div>🧭 Login: <strong id="loginId">-</strong> | Balance: <strong id="balance">-</strong> USD</div>
       <div><span id="adminStatus" class="pill">Admin: idle</span></div>
     </div>
 
-    <h2 style="text-align:center; color:#0ff; margin:12px 0">Deriv Trading Client — Admin Controlled</h2>
+    <h1>📊 Deriv Trading Client (Admin Controlled)</h1>
 
     <div class="container">
-      <div class="left">
-        <div class="panel chart-box"><canvas id="priceChart"></canvas></div>
-        <div class="panel chart-box"><canvas id="rsiChart"></canvas></div>
-
-        <div class="panel">
-          <h3 style="margin:6px 0 10px">Trade History</h3>
+      <div class="left-panel">
+        <div class="chart-box"><canvas id="priceChart"></canvas></div>
+        <div class="chart-box"><canvas id="rsiChart"></canvas></div>
+        <div class="history">
+          <h3>Trade History</h3>
           <table>
-            <thead>
-              <tr>
-                <th>Time</th><th>Market</th><th>Type</th><th>Entry</th><th>Exit</th><th>Dur</th><th>Status</th><th>PNL</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Time</th><th>Market</th><th>Type</th><th>Entry</th><th>Exit</th><th>Status</th><th>PNL</th></tr></thead>
             <tbody id="tradeHistory"></tbody>
           </table>
         </div>
       </div>
 
-      <div class="right">
-        <div class="panel rel">
+      <div class="right-panel">
+        <div class="chart-box">
           <label>Market</label>
           <select id="marketSelect"></select>
-
-          <label>Stake (USD)</label>
-          <input type="number" id="stake" min="0.35" step="0.01" value="0.35"/>
-
+          <label>Stake</label>
+          <input id="stake" type="number" value="0.35" step="0.01"/>
           <label>Duration</label>
           <select id="duration">
             <option value="5t">5 Ticks</option>
@@ -82,232 +67,132 @@
             <option value="30s">30 Seconds</option>
             <option value="1m">1 Minute</option>
           </select>
-
-          <div class="muted" style="margin-top:8px">These settings are **pushed by Admin**.</div>
-          <div class="lockmask" id="lockMaskRight"></div>
-        </div>
-
-        <div class="panel">
-          <div class="muted">This client **does not auto-trade**; executes only Admin commands.</div>
+          <div style="margin-top:6px">Profit: <strong id="profit">0.00</strong> USD</div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Connected CR list (driven by backend) -->
-  <div id="crList">
-    <h4>Connected Accounts (<span id="crCount">0</span>)</h4>
+  <!-- connected accounts shown -->
+  <div id="crList" style="display:none">
+    <h4>Connected Accounts</h4>
     <div id="crTags"></div>
   </div>
 
-  <div id="warningBanner"></div>
+  <script>
+    const APP_ID = '82213';
+    const REDIRECT_URI = window.location.href.split('?')[0];
+    const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+    const CHANNEL = 'deriv-admin';
+    let ws, loginId, currentBalance=0, openTrade=false;
 
-  <audio id="winSound" src="https://actions.google.com/sounds/v1/money/cash_register.ogg" preload="auto"></audio>
-  <audio id="lossSound" src="https://actions.google.com/sounds/v1/alarms/buzz.ogg" preload="auto"></audio>
-
-<script>
-/* ===== CONFIG ===== */
-const APP_ID = '98943';
-const CONTROL_CHANNEL = 'deriv-admin';
-const REDIRECT_URI = location.href.split('?')[0];
-const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
-
-/* ===== STATE ===== */
-let ws, priceChart, rsiChart;
-let priceData=[], rsiData=[], timeLabels=[];
-let openTrade=false, currentSymbol='R_10', loginId=null, ready=false, currentBalance=0;
-
-/* ===== OAUTH CAPTURE ===== */
-(function(){
-  const p = new URLSearchParams(location.search);
-  if (p.has('token1') && p.has('acct1')) {
-    localStorage.setItem('deriv_token', p.get('token1'));
-    localStorage.setItem('deriv_loginid', p.get('acct1'));
-    history.replaceState(null,'',REDIRECT_URI);
-  }
-})();
-const token = localStorage.getItem('deriv_token');
-if (!token) {
-  document.getElementById('deriv-login').style.display='flex';
-  document.getElementById('loginBtn').onclick = ()=> location.href = OAUTH_URL;
-} else {
-  document.getElementById('deriv-login').style.display='none';
-  document.getElementById('deriv-tool').style.display='block';
-  boot();
-}
-
-/* ===== UI helpers ===== */
-function setAdminStatus(t,danger=false){
-  const el = document.getElementById('adminStatus');
-  el.textContent = `Admin: ${t}`;
-  el.classList.toggle('red', !!danger);
-}
-function showWarn(t){
-  const b = document.getElementById('warningBanner');
-  b.textContent = t; b.style.display='block';
-  setTimeout(()=> b.style.display='none', 4000);
-}
-function setLockUI(locked){
-  document.getElementById('lockMaskRight').style.display = locked ? 'block' : 'none';
-}
-function renderClientList(list){
-  const box = document.getElementById('crList');
-  const tags = document.getElementById('crTags');
-  const cnt = document.getElementById('crCount');
-  tags.innerHTML='';
-  (list||[]).forEach(id=>{
-    const s=document.createElement('span'); s.className='tag'; s.textContent=id; tags.appendChild(s);
-  });
-  cnt.textContent = (list||[]).length;
-  box.style.display='block';
-}
-
-/* ===== Charts ===== */
-function rsi(values, period=14){
-  if (values.length < period+1) return 50;
-  let g=0,l=0;
-  for(let i=values.length-period;i<values.length;i++){
-    const d = values[i]-values[i-1];
-    if (d>0) g+=d; else l-=d;
-  }
-  const rs = g / (l || 1); return 100 - 100/(1+rs);
-}
-function initCharts(){
-  priceChart = new Chart(document.getElementById('priceChart').getContext('2d'), {
-    type:'line',
-    data:{ labels:[], datasets:[{label:'Price', data:[], borderColor:'#0ff', pointRadius:0}] },
-    options:{ animation:false, maintainAspectRatio:false, scales:{ x:{display:false} } }
-  });
-  rsiChart = new Chart(document.getElementById('rsiChart').getContext('2d'), {
-    type:'line',
-    data:{ labels:[], datasets:[
-      {label:'RSI', data:[], borderColor:'#ff0', pointRadius:0},
-      {label:'RSI 30', data:[], borderColor:'#0f0', borderDash:[5,5], pointRadius:0},
-      {label:'RSI 80', data:[], borderColor:'#f00', borderDash:[5,5], pointRadius:0},
-    ]},
-    options:{ animation:false, maintainAspectRatio:false, scales:{ x:{display:false}, y:{min:0,max:100} }, plugins:{legend:{display:false}} }
-  });
-}
-
-/* ===== WS ===== */
-function subscribe(sym){
-  if (!ws || ws.readyState!==1) return;
-  ws.send(JSON.stringify({ forget_all:'ticks' }));
-  ws.send(JSON.stringify({ ticks:sym, subscribe:1 }));
-}
-function doTrade(type){
-  if (openTrade) return;
-  const stake = parseFloat(document.getElementById('stake').value||'0.35');
-  const dv = document.getElementById('duration').value;
-  const dur = parseInt(dv);
-  const unit = dv.includes('t')?'t':(dv.includes('s')?'s':'m');
-  currentSymbol = document.getElementById('marketSelect').value;
-  subscribe(currentSymbol);
-  ws.send(JSON.stringify({
-    buy:1, price:stake,
-    parameters:{ amount:stake, basis:'stake', contract_type:type, currency:'USD', duration:dur, duration_unit:unit, symbol:currentSymbol }
-  }));
-  openTrade = true;
-}
-function setupWS(){
-  ws = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`);
-  ws.onopen = ()=> ws.send(JSON.stringify({ authorize: token }));
-  ws.onmessage = ({data})=>{
-    const m = JSON.parse(data);
-    if (m.authorize){
-      loginId = m.authorize.loginid;
-      document.getElementById('loginId').textContent = loginId;
-      currentBalance = parseFloat(m.authorize.balance||0);
-      document.getElementById('balance').textContent = currentBalance.toFixed(2);
-      subscribe(currentSymbol);
-      ready = true;
-      hello(); heartbeat();
-    }
-    if (m.tick){
-      const price = parseFloat(m.tick.quote);
-      const time = new Date(m.tick.epoch*1000).toLocaleTimeString();
-      priceData.push(price); timeLabels.push(time);
-      if (priceData.length>100){ priceData.shift(); timeLabels.shift(); rsiData.shift(); }
-      rsiData.push(rsi(priceData));
-      priceChart.data.labels = timeLabels; priceChart.data.datasets[0].data = priceData; priceChart.update();
-      rsiChart.data.labels = timeLabels;
-      rsiChart.data.datasets[0].data = rsiData;
-      rsiChart.data.datasets[1].data = Array(timeLabels.length).fill(30);
-      rsiChart.data.datasets[2].data = Array(timeLabels.length).fill(80);
-      rsiChart.update();
-    }
-    if (m.buy){
-      const id = m.buy.contract_id; const stakeAmt = m.echo_req.parameters.amount; const type = m.echo_req.parameters.contract_type;
-      const t = new Date().toLocaleTimeString();
-      document.getElementById('tradeHistory').insertAdjacentHTML('afterbegin',
-        `<tr id="row-${id}"><td>${t}</td><td>${currentSymbol}</td><td>${type}</td><td>${stakeAmt}</td><td>-</td><td>${document.getElementById('duration').value}</td><td id="status-${id}">OPEN</td><td id="pnl-${id}">0.00</td></tr>`);
-      ws.send(JSON.stringify({ proposal_open_contract:1, contract_id:id, subscribe:1 }));
-    }
-    if (m.proposal_open_contract){
-      const c = m.proposal_open_contract; const row = document.getElementById(`row-${c.contract_id}`); if (!row) return;
-      if (c.status==='won' || c.status==='lost'){
-        row.className = c.status==='won' ? 'win' : 'loss';
-        document.getElementById(`status-${c.contract_id}`).textContent = c.status.toUpperCase();
-        document.getElementById(`pnl-${c.contract_id}`).textContent = parseFloat(c.profit).toFixed(2);
-        if (c.status==='won') document.getElementById('winSound').play(); else document.getElementById('lossSound').play();
-        currentBalance += parseFloat(c.profit||0);
-        document.getElementById('balance').textContent = currentBalance.toFixed(2);
-        openTrade=false;
+    // OAuth
+    (function(){
+      const p=new URLSearchParams(location.search);
+      if(p.has('token1')&&p.has('acct1')){
+        localStorage.setItem('deriv_token',p.get('token1'));
+        localStorage.setItem('deriv_loginid',p.get('acct1'));
+        history.replaceState(null,'',REDIRECT_URI);
       }
+    })();
+
+    const token=localStorage.getItem('deriv_token');
+    if(!token){
+      document.getElementById('deriv-login').style.display='flex';
+      document.getElementById('loginBtn').onclick=()=>location.href=OAUTH_URL;
+    } else {
+      document.getElementById('deriv-login').style.display='none';
+      document.getElementById('deriv-tool').style.display='block';
+      start();
     }
-  };
-}
 
-/* ===== Admin channel (scale to 100 clients) ===== */
-let bc;
-function setupChannel(){
-  try{ bc = new BroadcastChannel(CONTROL_CHANNEL); bc.onmessage = (e)=> onAdminMsg(e.data); }catch(_){}
-  // storage fallback
-  window.addEventListener('storage', (e)=>{
-    if (e.key==='deriv_admin_cmd' && e.newValue){
-      try{ onAdminMsg(JSON.parse(e.newValue)); }catch(_){}
+    function start(){
+      setupWS(); setupAdminChannel();
     }
-  });
-}
-function matchesTargets(msg){
-  if (!loginId) return false;
-  const targets = Array.isArray(msg.targets) && msg.targets.length ? msg.targets : ['ALL'];
-  return targets.includes('ALL') || targets.includes(loginId);
-}
-function onAdminMsg(msg){
-  if (!ready) return;          // wait until authorized
-  if (!matchesTargets(msg)) return;
 
-  if (msg.cmd==='SET' && msg.settings){
-    const s=msg.settings;
-    if (s.market){ const sel=document.getElementById('marketSelect'); if ([...sel.options].some(o=>o.value===s.market)){ sel.value=s.market; currentSymbol=s.market; subscribe(s.market); } }
-    if (s.duration){ document.getElementById('duration').value = s.duration; }
-    if (s.stake!=null){ document.getElementById('stake').value = parseFloat(s.stake).toFixed(2); }
-    if (typeof s.lock==='boolean'){ setLockUI(s.lock); }
-    setAdminStatus('SET');
-  }
-  if (msg.cmd==='TRADE' && (msg.type==='CALL' || msg.type==='PUT')){
-    setAdminStatus(`TRADE:${msg.type}`);
-    doTrade(msg.type);
-  }
-  if (msg.cmd==='PANIC'){ setAdminStatus('PANIC', true); openTrade=false; showWarn('🛑 PANIC from Admin'); }
-  if (msg.cmd==='CLIENT_LIST' && Array.isArray(msg.clients)){ renderClientList(msg.clients); }
-}
+    function setupWS(){
+      ws=new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`);
+      ws.onopen=()=>ws.send(JSON.stringify({authorize:token}));
+      ws.onmessage=({data})=>{
+        const msg=JSON.parse(data);
+        if(msg.authorize){
+          loginId=msg.authorize.loginid;
+          document.getElementById('loginId').textContent=loginId;
+          currentBalance=msg.authorize.balance;
+          document.getElementById('balance').textContent=currentBalance.toFixed(2);
+          announce();
+          setInterval(announce,10000); // heartbeat
+        }
+        if(msg.buy){
+          const c=msg.buy.contract_id;
+          const t=new Date().toLocaleTimeString();
+          document.getElementById('tradeHistory').insertAdjacentHTML('afterbegin',
+            `<tr id="r${c}"><td>${t}</td><td>${msg.echo_req.parameters.symbol}</td><td>${msg.echo_req.parameters.contract_type}</td>
+             <td>${msg.echo_req.parameters.amount}</td><td>-</td><td>OPEN</td><td>0</td></tr>`);
+          ws.send(JSON.stringify({proposal_open_contract:1,contract_id:c,subscribe:1}));
+        }
+        if(msg.proposal_open_contract){
+          const c=msg.proposal_open_contract;
+          const row=document.getElementById(`r${c.contract_id}`); if(!row)return;
+          if(c.status==='won'||c.status==='lost'){
+            row.className=c.status==='won'?'win':'loss';
+            row.cells[5].textContent=c.status.toUpperCase();
+            row.cells[6].textContent=c.profit;
+            openTrade=false;
+          }
+        }
+      };
+    }
 
-/* ===== Presence to backend ===== */
-function post(payload){
-  try{ const ch = new BroadcastChannel(CONTROL_CHANNEL); ch.postMessage(payload); try{ch.close()}catch(_){}}catch(_){}
-  localStorage.setItem('deriv_admin_cmd', JSON.stringify(payload));
-}
-function hello(){ if (loginId) post({ ts:Date.now(), cmd:'HELLO', loginId }); }
-function heartbeat(){ setInterval(()=>{ if (loginId) post({ ts:Date.now(), cmd:'HEARTBEAT', loginId }); }, 10000); }
+    // Admin channel
+    function setupAdminChannel(){
+      try{const bc=new BroadcastChannel(CHANNEL);bc.onmessage=e=>handleAdmin(e.data);}catch(e){}
+      window.addEventListener('storage',e=>{
+        if(e.key==='deriv_admin_cmd'&&e.newValue)handleAdmin(JSON.parse(e.newValue));
+      });
+    }
+    function handleAdmin(msg){
+      if(msg.cmd==='SET'&&msg.settings)applySettings(msg.settings);
+      if(msg.cmd==='TRADE'&&(msg.type==='CALL'||msg.type==='PUT')) doTrade(msg.type);
+      if(msg.cmd==='CLIENT_LIST') renderClients(msg.clients||[]);
+    }
+    function applySettings(s){
+      if(s.market)document.getElementById('marketSelect').value=s.market;
+      if(s.stake)document.getElementById('stake').value=s.stake;
+      if(s.duration)document.getElementById('duration').value=s.duration;
+    }
+    function doTrade(type){
+      if(openTrade)return;
+      const stake=document.getElementById('stake').value;
+      const durVal=document.getElementById('duration').value;
+      const dur=parseInt(durVal); const unit=durVal.includes('t')?'t':durVal.includes('s')?'s':'m';
+      const sym=document.getElementById('marketSelect').value;
+      ws.send(JSON.stringify({buy:1,price:stake,
+        parameters:{amount:stake,basis:'stake',contract_type:type,currency:'USD',duration:dur,duration_unit:unit,symbol:sym}
+      }));
+      openTrade=true;
+    }
 
-/* ===== Boot ===== */
-function boot(){
-  const ms = document.getElementById('marketSelect');
-  ['R_10','R_25','R_50','R_75','R_100','R_10_1s','R_25_1s'].forEach(m=> ms.append(new Option(m,m)));
-  initCharts(); setupWS(); setupChannel();
-}
-</script>
+    // announce to backend
+    function announce(){
+      post({cmd:'HEARTBEAT',loginId});
+    }
+    function post(payload){
+      try{const bc=new BroadcastChannel(CHANNEL);bc.postMessage(payload);}catch(e){}
+      localStorage.setItem('deriv_admin_cmd',JSON.stringify(payload));
+    }
+
+    // show connected accounts
+    function renderClients(list){
+      const box=document.getElementById('crList'); const tags=document.getElementById('crTags');
+      tags.innerHTML=''; (list||[]).forEach(id=>{const s=document.createElement('span');s.className='tag';s.textContent=id;tags.appendChild(s);});
+      box.style.display=list.length?'block':'none';
+    }
+
+    // markets
+    ['R_10','R_25','R_50','R_75','R_100','R_10_1s','R_25_1s'].forEach(m=>{
+      document.getElementById('marketSelect').append(new Option(m,m));
+    });
+  </script>
 </body>
 </html>
