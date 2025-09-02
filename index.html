@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en" >
+<head>
+  <meta charset="UTF-8">
+  <title>Untitled</title>
+  
+
+</head>
+<body>
+<!-- partial:index.partial.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Deriv Real Trading Tool</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { margin: 0; padding: 0; background: #0d0d0d; color: #fff; font-family: Arial, sans-serif; }
+    #deriv-login { display: flex; justify-content: center; align-items: center; height: 200px; }
+    #deriv-login button {
+      padding: 12px 20px; background: #0ff; color: #000; border: none; border-radius: 5px; font-size: 16px; cursor: pointer;
+    }
+    #deriv-tool { display: none; padding: 20px; }
+    h1 { text-align: center; color: #0ff; margin-bottom: 12px; }
+    .topbar{
+      display:flex; justify-content:space-between; align-items:center;
+      background:#111; padding:8px 12px; border-bottom:1px solid #222; border-top:1px solid #000; font-size:13px
+    }
+    .pill{padding:4px 8px;border-radius:999px;background:#0f172a;color:#0ff;border:1px solid #063;font-weight:700}
+    .pill.red{background:#1f0a0a;color:#ff6;border-color:#600}
+    .container { display: flex; flex-wrap: wrap; gap: 20px; }
+    .left-panel { flex: 3; min-width: 300px; }
+    .right-panel { flex: 1; min-width: 220px; }
+    .chart-box, .history, .summary, .panel {
+      background: #1a1a1a; border-radius: 10px; padding: 10px; margin-bottom: 20px;
+    }
+    .chart-box canvas { width: 100% !important; height: 300px !important; }
+    label{font-size:13px; color:#9ad;}
+    select,input{ width:100%; box-sizing:border-box; padding:8px; margin:6px 0; background:#111; color:#fff; border:1px solid #333; border-radius:6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid #333; padding: 5px; text-align: center; }
+    .win { background: #003300; color: #0f0; }
+    .loss { background: #330000; color: #f00; }
+    .entry { color: #0f0; }
+    #warningBanner {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: #222; color: #fff; padding: 15px 25px; border-radius: 8px; font-size: 16px; display: none;
+      box-shadow: 0 0 10px rgba(0,0,0,0.5);
+    }
+    .muted{ color:#9aa; font-size:12px }
+    .dim{ opacity:.65 }
+    .lockmask{ position:absolute; inset:0; background:rgba(0,0,0,.35); display:none; border-radius:10px }
+    .panel.rel{ position:relative }
+
+    /* Connected CR list at bottom-right */
+    #crList {
+      position: fixed; right: 14px; bottom: 14px;
+      background: rgba(10,10,10,.9); border:1px solid #1f2937; border-radius:12px; padding:10px 12px; min-width: 180px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.35); font-size:12px
+    }
+    #crList h4{ margin:0 0 6px 0; font-size:12px; color:#9ad }
+    #crList .tag{ display:inline-block; margin:3px 4px 0 0; padding:3px 8px; border-radius:999px; background:#0f172a; border:1px solid #0a2; color:#8ff; }
+  </style>
+</head>
+<body>
+
+  <div id="deriv-login">
+    <button id="loginBtn">Login with Deriv</button>
+  </div>
+
+  <div id="deriv-tool">
+    <div class="topbar">
+      <div>🧭 <span class="muted">Login:</span> <strong id="loginId">-</strong>
+        &nbsp;|&nbsp; <span class="muted">Balance:</span> <strong id="balance">-</strong> USD
+      </div>
+      <div>
+        <span id="adminStatus" class="pill dim">Admin: idle</span>
+      </div>
+    </div>
+
+    <h1>📈 Deriv Trading Tool — Admin Controlled</h1>
+    <div class="container">
+      <div class="left-panel">
+        <div class="chart-box"><canvas id="priceChart"></canvas></div>
+        <div class="chart-box"><canvas id="rsiChart"></canvas></div>
+
+        <div class="summary panel rel">
+          <div class="muted">This client executes trades only when **Admin** sends commands.</div>
+          <div class="muted">Market / Duration / Stake are updated by Admin “Push Settings”.</div>
+          <div class="lockmask" id="lockMask"></div>
+        </div>
+
+        <div class="history">
+          <h3>Trade History</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th><th>Market</th><th>Type</th><th>Entry</th><th>Exit</th><th>Dur</th><th>Status</th><th>PNL</th>
+              </tr>
+            </thead>
+            <tbody id="tradeHistory"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="right-panel">
+        <div class="panel rel">
+          <label>Market:</label>
+          <select id="marketSelect"></select>
+
+          <label>Stake (USD):</label>
+          <input type="number" id="stake" min="0.35" step="0.01" value="0.35">
+
+          <label>Duration:</label>
+          <select id="duration">
+            <option value="5t">5 Ticks</option>
+            <option value="10t" selected>10 Ticks</option>
+            <option value="30s">30 Seconds</option>
+            <option value="1m">1 Minute</option>
+          </select>
+
+          <div style="margin-top:8px" class="muted">
+            Profit: <strong id="profit">0.00</strong> USD
+          </div>
+          <div class="lockmask" id="lockMaskRight"></div>
+        </div>
+
+        <div class="panel">
+          <div class="muted">⚙️ Client UI is read-only; Admin overrides via backend.</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="warningBanner"></div>
+
+    <!-- Sounds -->
+    <audio id="winSound" src="https://actions.google.com/sounds/v1/money/cash_register.ogg" preload="auto"></audio>
+    <audio id="lossSound" src="https://actions.google.com/sounds/v1/alarms/buzz.ogg" preload="auto"></audio>
+  </div>
+
+  <!-- Connected CR list (fed by backend) -->
+  <div id="crList" style="display:none">
+    <h4>Connected Accounts</h4>
+    <div id="crTags"></div>
+  </div>
+
+  <script>
+    /********** CONFIG **********/
+    const APP_ID = '82213';
+    const REDIRECT_URI = window.location.href.split('?')[0];
+    const OAUTH_URL = `https://oauth.deriv.com/oauth2/authorize?app_id=${APP_ID}&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
+    const CONTROL_CHANNEL = 'deriv-admin'; // BroadcastChannel name
+
+    /********** STATE **********/
+    let ws, priceChart, rsiChart,
+        priceData = [], rsiData = [], timeLabels = [],
+        stats = { total: 0, wins: 0, losses: 0, profit: 0 },
+        openTrade = false,
+        currentBalance = 0,
+        currentSymbol = 'R_10',
+        loginId = null,
+        ready = false;
+
+    const pendingMsgs = [];
+
+    /********** OAUTH CAPTURE **********/
+    (function () {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('token1') && params.has('acct1')) {
+        localStorage.setItem('deriv_token', params.get('token1'));
+        localStorage.setItem('deriv_loginid', params.get('acct1'));
+        history.replaceState(null, '', REDIRECT_URI);
+      }
+    })();
+
+    const token = localStorage.getItem('deriv_token');
+    if (!token) {
+      document.getElementById('deriv-login').style.display = 'flex';
+      document.getElementById('loginBtn').onclick = () => window.location.href = OAUTH_URL;
+    } else {
+      document.getElementById('deriv-login').style.display = 'none';
+      document.getElementById('deriv-tool').style.display = 'block';
+      startTradingTool();
+    }
+
+    /********** UI HELPERS **********/
+    function setAdminStatus(text, danger=false){
+      const el = document.getElementById('adminStatus');
+      el.textContent = `Admin: ${text}`;
+      el.classList.toggle('red', !!danger);
+      el.classList.remove('dim');
+    }
+    function setLockUI(locked){
+      document.getElementById('lockMask').style.display = locked ? 'block' : 'none';
+      document.getElementById('lockMaskRight').style.display = locked ? 'block' : 'none';
+    }
+    function showWarning(message) {
+      const banner = document.getElementById('warningBanner');
+      banner.textContent = message;
+      banner.style.display = 'block';
+      setTimeout(()=> banner.style.display='none', 5000);
+    }
+
+    /********** CHARTS (prices/RSI only for view) **********/
+    function calculateRSI(data, period = 14) {
+      if (data.length < period + 1) return 50;
+      let gains = 0, losses = 0;
+      for (let i = data.length - period; i < data.length; i++) {
+        const d = data[i] - data[i - 1];
+        if (d > 0) gains += d; else losses -= d;
+      }
+      const rs = gains / (losses || 1);
+      return 100 - 100 / (1 + rs);
+    }
+    function initCharts() {
+      priceChart = new Chart(document.getElementById('priceChart').getContext('2d'), {
+        type: 'line',
+        data: { labels: [], datasets: [ { label: 'Price', data: [], borderColor: '#0ff', pointRadius: 0 } ] },
+        options: { animation: false, maintainAspectRatio: false, scales: { x: { display: false } } }
+      });
+      rsiChart = new Chart(document.getElementById('rsiChart').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: [], datasets: [
+            { label: 'RSI', data: [], borderColor: '#ff0', pointRadius: 0 },
+            { label: 'RSI 30', data: [], borderColor: '#0f0', borderDash: [5,5], pointRadius: 0, fill: false },
+            { label: 'RSI 80', data: [], borderColor: '#f00', borderDash: [5,5], pointRadius: 0, fill: false }
+          ]
+        },
+        options: { animation: false, maintainAspectRatio: false, scales: { x: { display: false }, y: { min: 0, max: 100 } }, plugins: { legend: { display: false } } }
+      });
+    }
+
+    /********** WS **********/
+    function subscribeMarket(sym) {
+      if (!ws || ws.readyState !== 1) return;
+      ws.send(JSON.stringify({ forget_all: 'ticks' }));
+      ws.send(JSON.stringify({ ticks: sym, subscribe: 1 }));
+    }
+    function doTrade(type) {
+      if (openTrade) return;
+      const stake = parseFloat(document.getElementById('stake').value);
+      const durVal = document.getElementById('duration').value;
+      const dur = parseInt(durVal);
+      const unit = durVal.includes('t') ? 't' : durVal.includes('s') ? 's' : 'm';
+      currentSymbol = document.getElementById('marketSelect').value;
+      subscribeMarket(currentSymbol);
+      ws.send(JSON.stringify({
+        buy: 1, price: stake,
+        parameters: { amount: stake, basis: 'stake', contract_type: type,
+                      currency: 'USD', duration: dur, duration_unit: unit, symbol: currentSymbol }
+      }));
+      openTrade = true;
+    }
+    function setupWS() {
+      ws = new WebSocket(`wss://ws.binaryws.com/websockets/v3?app_id=${APP_ID}`);
+      ws.onopen = () => ws.send(JSON.stringify({ authorize: token }));
+      ws.onmessage = ({ data }) => {
+        const msg = JSON.parse(data);
+        if (msg.authorize) {
+          loginId = msg.authorize.loginid;
+          document.getElementById('loginId').textContent = loginId;
+          currentBalance = parseFloat(msg.authorize.balance);
+          document.getElementById('balance').textContent = currentBalance.toFixed(2);
+          subscribeMarket(currentSymbol);
+          ready = true;
+          // announce to admin + start heartbeats
+          announceToAdmin();
+          startHeartbeat();
+          // apply any queued admin msgs
+          while (pendingMsgs.length) handleAdminMsg(pendingMsgs.shift());
+        }
+        if (msg.tick) {
+          const price = parseFloat(msg.tick.quote);
+          const time = new Date(msg.tick.epoch * 1000).toLocaleTimeString();
+          priceData.push(price); timeLabels.push(time);
+          if (priceData.length > 100) { priceData.shift(); timeLabels.shift(); rsiData.shift(); }
+          const rsi = calculateRSI(priceData); rsiData.push(rsi);
+
+          priceChart.data.labels = timeLabels; priceChart.data.datasets[0].data = priceData; priceChart.update();
+          const len = timeLabels.length;
+          rsiChart.data.labels = timeLabels;
+          rsiChart.data.datasets[0].data = rsiData;
+          rsiChart.data.datasets[1].data = Array(len).fill(30);
+          rsiChart.data.datasets[2].data = Array(len).fill(80);
+          rsiChart.update();
+        }
+        if (msg.buy) {
+          const c = msg.buy.contract_id;
+          const stakeAmt = msg.echo_req.parameters.amount;
+          const type = msg.echo_req.parameters.contract_type;
+          const t = new Date().toLocaleTimeString();
+          document.getElementById('tradeHistory').insertAdjacentHTML('afterbegin',
+            `<tr id="row-${c}"><td>${t}</td><td>${currentSymbol}</td><td>${type}</td>
+              <td class="entry">${stakeAmt}</td><td>-</td><td>${document.getElementById('duration').value}</td>
+              <td id="status-${c}">OPEN</td><td id="pnl-${c}">0.00</td></tr>`);
+          ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: c, subscribe: 1 }));
+        }
+        if (msg.proposal_open_contract) {
+          const c = msg.proposal_open_contract;
+          const row = document.getElementById(`row-${c.contract_id}`);
+          if (!row) return;
+          if (c.status === 'won' || c.status === 'lost') {
+            row.className = c.status === 'won' ? 'win' : 'loss';
+            document.getElementById(`status-${c.contract_id}`).textContent = c.status.toUpperCase();
+            document.getElementById(`pnl-${c.contract_id}`).textContent = parseFloat(c.profit).toFixed(2);
+            if (c.status === 'won') document.getElementById('winSound').play();
+            else document.getElementById('lossSound').play();
+            stats[c.status === 'won' ? 'wins' : 'losses']++;
+            stats.total++; stats.profit += parseFloat(c.profit);
+            currentBalance += parseFloat(c.profit);
+            document.getElementById('balance').textContent = currentBalance.toFixed(2);
+            document.getElementById('profit').textContent = stats.profit.toFixed(2);
+            openTrade = false;
+          }
+        }
+      };
+    }
+
+    /********** ADMIN CONTROL WIREUP **********/
+    function applySettingsFromAdmin(s){
+      if (s.market){
+        const ms = document.getElementById('marketSelect');
+        if ([...ms.options].some(o=>o.value===s.market)){
+          ms.value = s.market; currentSymbol = s.market; subscribeMarket(s.market);
+        }
+      }
+      if (s.stake!=null){ document.getElementById('stake').value = parseFloat(s.stake).toFixed(2); }
+      if (s.duration){ document.getElementById('duration').value = s.duration; }
+      if (typeof s.lock === 'boolean'){ setLockUI(s.lock); }
+    }
+    function matchesTarget(msg){
+      if (!loginId) return false;
+      const targets = msg.targets && Array.isArray(msg.targets) ? msg.targets : ["ALL"];
+      if (targets.includes("ALL")) return true;
+      return targets.includes(loginId);
+    }
+    function handleAdminMsg(msg){
+      if (!ready){ pendingMsgs.push(msg); return; }
+      if (!matchesTarget(msg)) return;
+
+      setAdminStatus(`${msg.cmd}${msg.type?`:${msg.type}`:''}`);
+
+      if (msg.cmd === 'SET' && msg.settings) applySettingsFromAdmin(msg.settings);
+      if (msg.cmd === 'PANIC'){ openTrade = false; showWarning('🛑 PANIC STOP — Admin'); }
+      if (msg.cmd === 'TRADE' && (msg.type==='CALL' || msg.type==='PUT')) doTrade(msg.type);
+      if (msg.cmd === 'CLIENT_LIST' && Array.isArray(msg.clients)) renderClientList(msg.clients);
+    }
+    function setupAdminChannel(){
+      try { const bc = new BroadcastChannel(CONTROL_CHANNEL); bc.onmessage = (e)=> handleAdminMsg(e.data); } catch(e){}
+      window.addEventListener('storage', (e)=>{
+        if (e.key === 'deriv_admin_cmd' && e.newValue){
+          try { handleAdminMsg(JSON.parse(e.newValue)); } catch(_){}
+        }
+      });
+    }
+
+    /********** CLIENT HELLO + HEARTBEAT to Admin **********/
+    function postAdmin(payload){
+      // Broadcast
+      try{ const bc = new BroadcastChannel(CONTROL_CHANNEL); bc.postMessage(payload); try{bc.close();}catch(_){}}catch(_){}
+      // Storage fallback
+      localStorage.setItem('deriv_admin_cmd', JSON.stringify(payload));
+    }
+    function announceToAdmin(){
+      if (!loginId) return;
+      postAdmin({ ts: Date.now(), cmd: 'HELLO', loginId });
+    }
+    function startHeartbeat(){
+      setInterval(()=> {
+        if (loginId) postAdmin({ ts: Date.now(), cmd: 'HEARTBEAT', loginId });
+      }, 10000);
+    }
+
+    /********** CLIENT LIST RENDER **********/
+    function renderClientList(list){
+      const box = document.getElementById('crList');
+      const tags = document.getElementById('crTags');
+      tags.innerHTML = '';
+      (list||[]).forEach(id=>{
+        const span = document.createElement('span');
+        span.className = 'tag'; span.textContent = id;
+        tags.appendChild(span);
+      });
+      box.style.display = (list && list.length) ? 'block' : 'none';
+    }
+
+    /********** BOOT **********/
+    function startTradingTool() {
+      const mlist = ['R_10', 'R_25', 'R_50', 'R_75', 'R_100', 'R_10_1s', 'R_25_1s'];
+      const ms = document.getElementById('marketSelect');
+      mlist.forEach(m => ms.append(new Option(m, m)));
+      ms.value = currentSymbol;
+      initCharts();
+      setupWS();
+      setupAdminChannel();
+    }
+  </script>
+</body>
+</html>
+<!-- partial -->
+  
+</body>
+</html>
