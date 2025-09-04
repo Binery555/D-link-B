@@ -105,17 +105,14 @@
       background:var(--panel); border:1px solid var(--stroke); border-radius:10px;
       display:flex; flex-direction:column;
     }
-    .tabbar{
-      display:flex; gap:6px; padding:6px; border-bottom:1px solid var(--stroke); background:#141414;
-    }
-    .tab{ padding:6px 12px; border:1px solid var(--stroke); border-radius:8px; cursor:pointer; font-size:13px; color:#ddd; background:#1a1a1a; }
-    .tab.active{ border-color:#2e8b8b; color:#000; background:var(--accent); }
     .chart-wrap{ position:relative; flex:1; display:flex; flex-direction:column; gap:10px; padding:10px; }
     .chart-box{
       position:relative;
-      background:#111; border:1px solid var(--stroke); border-radius:10px; padding:8px; height:320px;
+      background:#111; border:1px solid var(--stroke); border-radius:10px; padding:8px;
     }
     .chart-box canvas{ width:100% !important; height:100% !important; }
+    #priceBox{ height:320px; }
+    #rsiBox{ height:160px; }
 
     /* Live trade trend pill */
     .trend-bar{
@@ -177,6 +174,7 @@
       background:#222; color:#fff; padding:15px 25px; border-radius:8px; font-size:16px; display:none;
       box-shadow:0 0 10px rgba(0,0,0,0.5);
       border:1px solid var(--stroke);
+      z-index:5;
     }
 
     /* ===== Live PnL overlay box ===== */
@@ -186,6 +184,7 @@
       border:1px solid var(--stroke);
       border-radius:8px; padding:8px 10px; font-size:12px; line-height:1.35;
       min-width:220px;
+      z-index:4;
     }
     .pnl-box .hdr{ font-weight:700; margin-bottom:4px; color:#eaeaea; }
     .pnl-box .row{ display:flex; justify-content:space-between; gap:16px; }
@@ -194,6 +193,18 @@
     .pnl-box.loss{ border-color:#7a2a2a; box-shadow:0 0 0 1px #7a2a2a inset; }
     .pnl-box .pos{ color:#8df2b0; }
     .pnl-box .neg{ color:#ff9595; }
+
+    /* Signal processing dots */
+    .dots::after{
+      content:""; display:inline-block; width:1.2em; text-align:left; animation: dots 1.2s steps(4,end) infinite;
+    }
+    @keyframes dots {
+      0% { content:""; }
+      25%{ content:"."; }
+      50%{ content:".."; }
+      75%{ content:"..."; }
+      100%{ content:""; }
+    }
 
     /* Responsive */
     @media (max-width:1100px){
@@ -263,12 +274,9 @@
       <!-- Main (Charts + Order) -->
       <main class="main">
         <section class="charts">
-          <div class="tabbar">
-            <button class="tab active" data-tab="price">Price</button>
-            <button class="tab" data-tab="rsi">RSI</button>
-          </div>
           <div class="chart-wrap">
-            <div class="chart-box" id="tab-price">
+            <!-- PRICE -->
+            <div class="chart-box" id="priceBox">
               <canvas id="priceChart"></canvas>
               <!-- Live PnL BOX -->
               <div id="livePnLBox" class="pnl-box" style="display:none">
@@ -281,13 +289,17 @@
                 <div class="row"><span>Final</span><span class="val" id="pnlFinal">—</span></div>
               </div>
             </div>
-            <div class="chart-box" id="tab-rsi" style="display:none;"><canvas id="rsiChart"></canvas></div>
+
+            <!-- RSI -->
+            <div class="chart-box" id="rsiBox">
+              <canvas id="rsiChart"></canvas>
+            </div>
 
             <div class="panel" style="margin-top:4px;">
               <div class="panel-header">Signal & Session Summary</div>
               <div style="padding:10px; display:flex; justify-content:space-between; gap:20px; flex-wrap:wrap;">
                 <div class="trend-bar">
-                  <div id="signalStrength">Waiting for Signal...</div>
+                  <div id="signalStrength" class="dots">Signal processing</div>
                   <span id="trendPill" class="trend-pill wait">No open trade</span>
                 </div>
                 <div id="stats">Total: 0 | Wins: 0 | Losses: 0 | Profit: $0.00</div>
@@ -300,6 +312,7 @@
           <h3>New Order</h3>
           <label>Market</label>
           <select id="marketSelect"></select>
+
           <div class="row">
             <div>
               <label>Stake</label>
@@ -318,14 +331,25 @@
             </div>
           </div>
 
-          <button class="btn btn-buy" id="btnBuyCall">Buy CALL</button>
-          <button class="btn btn-sell" id="btnBuyPut">Buy PUT</button>
+          <div class="row">
+            <div>
+              <label>Quantity (trades at once)</label>
+              <input type="number" id="qty" min="1" step="1" value="1">
+            </div>
+            <div>
+              <label>&nbsp;</label>
+              <div style="height:36px; display:flex; gap:10px;">
+                <button class="btn btn-buy" id="btnBuyCall" style="flex:1">Buy CALL</button>
+                <button class="btn btn-sell" id="btnBuyPut"  style="flex:1">Buy PUT</button>
+              </div>
+            </div>
+          </div>
 
           <div class="row" style="margin-top:6px;">
             <button class="btn btn-auto" id="autoRunBtn">Auto Run</button>
             <button class="btn btn-stop" id="stopBtn">Stop Auto</button>
           </div>
-          <button class="btn btn-stop" id="closeBtn" style="width:100%; margin-top:6px;">Close Open Trade</button>
+          <button class="btn btn-stop" id="closeBtn" style="width:100%; margin-top:6px;">Close All Open Trades</button>
 
           <div style="margin-top:10px; font-size:12px; color:#aaa;">
             <div>Login ID: <b id="loginId_dup">-</b></div>
@@ -376,21 +400,24 @@
     let initialBalance = 0;
     let profitWarned = false, lossWarned = false;
     let ws, priceChart, rsiChart,
-        priceData = [], rsiData = [], timeLabels = [], entryMarkers = [],
+        priceData = [], rsiData = [], timeLabels = [],
         stats = { total: 0, wins: 0, losses: 0, profit: 0 },
         autoRunning = false, currentSymbol,
         martingaleSteps = [0.35,0.61,1.06,1.78,2.99,5.16,8.56,14.14,23.42,38.72,63.90],
-        currentStep = 0, openTrade = false,
+        currentStep = 0,
         consecutiveLosses = 0, consecutiveWins = 0, autoResumeTimeout = null,
         currentBalance = 0,
-        signalCooldown = false;
+        signalCooldown = false,
+        waitingSignal = true;
 
-    // ===== fields to drive live/final PnL box =====
-    let currentContractId = null;
-    let currentContractType = null; // 'CALL' or 'PUT'
-    let currentEntrySpot = null;
-    let currentBuyPrice = null;     // buy_price (stake actually paid)
-    const FALLBACK_POINT_MULTIPLIER = 1.0; // fallback estimate
+    // Active contracts map: id -> info
+    const activeContracts = new Map();
+
+    // For entry arrow markers on price chart
+    const entryMarkers = []; // {x: label, y: price, type: 'CALL'|'PUT'}
+
+    // ===== fields to drive live/final PnL box (last-updated contract) =====
+    let lastContractType = null;
 
     const markets = ['R_10', 'R_25', 'R_50', 'R_75', 'R_100', 'R_10_1s', 'R_25_1s'];
     window.markets = markets;
@@ -417,13 +444,6 @@
     /* ================== UI HELPERS ================== */
     document.addEventListener('click', (e)=>{
       const t = e.target;
-      if(t.classList.contains('tab')){
-        document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-        t.classList.add('active');
-        const tab = t.dataset.tab;
-        document.getElementById('tab-price').style.display = tab==='price'?'block':'none';
-        document.getElementById('tab-rsi').style.display   = tab==='rsi'  ?'block':'none';
-      }
       if(t.classList.contains('term-tab')){
         document.querySelectorAll('.term-tab').forEach(b=>b.classList.remove('active'));
         t.classList.add('active');
@@ -498,6 +518,13 @@
       const avg = last5.length? (last5.reduce((a, b) => a + b, 0) / last5.length) : price;
       const isUpTrend = price > avg;
       const isDownTrend = price < avg;
+
+      // show "processing..." while waiting
+      if (!signalCooldown) {
+        document.getElementById('signalStrength').classList.add('dots');
+        document.getElementById('signalStrength').textContent = 'Signal processing';
+      }
+
       if (!signalCooldown) {
         if (rsi <= 30 && isUpTrend) {
           triggerSignal('up');
@@ -508,33 +535,77 @@
     }
 
     function triggerSignal(type) {
-      document.getElementById('signalStrength').innerHTML = `📊 Signal: ${type.toUpperCase()}`;
+      waitingSignal = false;
+      const box = document.getElementById('signalStrength');
+      box.classList.remove('dots');
+      box.innerHTML = `📊 Signal: <b>${type.toUpperCase()}</b>`;
       document.getElementById('signalSound').play();
       if (autoRunning) {
-        if (type === 'up') doTrade('CALL'); else if (type === 'down') doTrade('PUT');
+        if (type === 'up') multiBuy('CALL'); else if (type === 'down') multiBuy('PUT');
       }
       signalCooldown = true;
-      setTimeout(() => { signalCooldown = false; }, 5000);
+      setTimeout(() => {
+        signalCooldown = false;
+        waitingSignal = true;
+        box.classList.add('dots');
+        box.textContent = 'Signal processing';
+      }, 5000);
     }
 
     /* ================== CHARTS ================== */
     function initCharts() {
-      priceChart = new Chart(document.getElementById('priceChart').getContext('2d'), {
+      const priceCtx = document.getElementById('priceChart').getContext('2d');
+      priceChart = new Chart(priceCtx, {
         type: 'line',
-        data: { labels: [], datasets:[{ label:'Price', data:[], borderColor:'#0ff', pointRadius:0 }] },
-        options: { animation:false, maintainAspectRatio:false, scales:{ x:{ display:false } }, plugins:{ legend:{ display:false } } }
+        data: {
+          labels: [],
+          datasets:[
+            { label:'Price', data:[], borderColor:'#0ff', pointRadius:0, tension:0.2 },
+            // Entry markers (arrows)
+            {
+              type: 'scatter',
+              label:'Entries',
+              data: entryMarkers,
+              pointStyle: (ctx)=>{
+                const d = ctx.raw || {};
+                return 'triangle';
+              },
+              pointRotation: (ctx)=>{
+                const d = ctx.raw || {};
+                return d.type==='PUT' ? 180 : 0; // CALL up, PUT down
+              },
+              pointRadius: 6,
+              backgroundColor: (ctx)=>{
+                const d = ctx.raw || {};
+                return d.type==='PUT' ? '#ff7b7b' : '#8df2b0';
+              },
+              borderWidth: 0
+            }
+          ]
+        },
+        options: {
+          animation:false, maintainAspectRatio:false,
+          scales:{ x:{ display:false } },
+          plugins:{ legend:{ display:false }, tooltip:{ enabled:true } }
+        }
       });
-      rsiChart = new Chart(document.getElementById('rsiChart').getContext('2d'), {
+
+      const rsiCtx = document.getElementById('rsiChart').getContext('2d');
+      rsiChart = new Chart(rsiCtx, {
         type: 'line',
         data: {
           labels: [],
           datasets: [
-            { label:'RSI', data:[], borderColor:'#ff0', pointRadius:0 },
+            { label:'RSI', data:[], borderColor:'#ff0', pointRadius:0, tension:0.2 },
             { label:'RSI 30', data:[], borderColor:'#0f0', borderDash:[5,5], pointRadius:0, fill:false },
             { label:'RSI 80', data:[], borderColor:'#f00', borderDash:[5,5], pointRadius:0, fill:false }
           ]
         },
-        options: { animation:false, maintainAspectRatio:false, scales:{ x:{ display:false }, y:{ min:0, max:100 } }, plugins:{ legend:{ display:false } } }
+        options: {
+          animation:false, maintainAspectRatio:false,
+          scales:{ x:{ display:false }, y:{ min:0, max:100 } },
+          plugins:{ legend:{ display:false } }
+        }
       });
     }
 
@@ -545,11 +616,15 @@
       document.querySelectorAll('.mw-row').forEach(r=>{ r.style.background = (r.dataset.sym===sym)? '#1c1c1c' : 'transparent'; });
     }
 
-    // Manual or auto trades
-    function doTrade(type, manual=false) {
-      if (openTrade) return;
-      if (!manual && !autoRunning) return;
+    // send N buys at once (manual & auto)
+    function multiBuy(type){
+      const qty = Math.max(1, parseInt(document.getElementById('qty').value || '1', 10));
+      for (let i=0;i<qty;i++){
+        doBuyOnce(type);
+      }
+    }
 
+    function doBuyOnce(type) {
       const stake = parseFloat(document.getElementById('stake').value);
       const durVal = document.getElementById('duration').value;
       const dur = parseInt(durVal);
@@ -567,14 +642,9 @@
         }
       }));
 
-      openTrade = true;
-      currentContractId = null;
-      currentContractType = type;
-      currentEntrySpot = null;
-      currentBuyPrice = stake; // will override with true buy_price
+      lastContractType = type;
       setTrendPill('wait', 'Opening...');
-
-      // Show PnL box init
+      // show/reset pnl box for last opened
       pnlBox().style.display = 'block';
       pnlBox().classList.remove('win','loss');
       el('pnlSide').textContent = type;
@@ -606,14 +676,17 @@
           const time = new Date(msg.tick.epoch * 1000).toLocaleTimeString();
           priceData.push(price);
           timeLabels.push(time);
-          if (priceData.length > 300) { priceData.shift(); timeLabels.shift(); rsiData.shift(); entryMarkers.shift(); }
+          if (priceData.length > 300) { priceData.shift(); timeLabels.shift(); rsiData.shift(); }
+
           const rsi = calculateRSI(priceData);
           rsiData.push(rsi);
 
+          // update price
           priceChart.data.labels = timeLabels;
           priceChart.data.datasets[0].data = priceData;
           priceChart.update('none');
 
+          // update rsi & guide lines
           const len = timeLabels.length;
           rsiChart.data.labels = timeLabels;
           rsiChart.data.datasets[0].data = rsiData;
@@ -623,6 +696,7 @@
 
           detectRSISignal(price, rsi);
 
+          // market watch bid/ask
           const bid = price.toFixed(5);
           const ask = (price + 0.00010).toFixed(5);
           const row = document.querySelector(`.mw-row[data-sym="${msg.tick.symbol}"]`);
@@ -631,10 +705,16 @@
 
         if (msg.buy) {
           const c = msg.buy.contract_id;
-          currentContractId = c;
-          if (isFinite(parseFloat(msg.buy.buy_price))) currentBuyPrice = parseFloat(msg.buy.buy_price);
           const type = msg.echo_req.parameters.contract_type;
+          const stakeUsed = parseFloat(msg.buy.buy_price ?? msg.echo_req.price ?? 0) || 0;
           const t = new Date().toLocaleTimeString();
+
+          activeContracts.set(c, {
+            type, symbol: currentSymbol,
+            buy_price: stakeUsed,
+            entry_spot: null
+          });
+
           document.getElementById('tradeHistory').insertAdjacentHTML('afterbegin',
             `<tr id="row-${c}">
                <td>${t}</td><td>${currentSymbol}</td><td>${type}</td><td>-</td>
@@ -643,8 +723,9 @@
                <td id="status-${c}">OPEN</td>
                <td id="behavior-${c}">Waiting...</td>
              </tr>`);
+
           ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: c, subscribe: 1 }));
-          openTrade = true;
+
           stats.total++; updateStats();
           el('pnlSide').textContent = type;
         }
@@ -655,136 +736,118 @@
           const beh = document.getElementById(`behavior-${c.contract_id}`);
           if (!row || !beh) return;
 
-          // cache entry spot
-          if (isFinite(parseFloat(c.entry_spot_display_value))) {
-            currentEntrySpot = parseFloat(c.entry_spot_display_value);
+          const record = activeContracts.get(c.contract_id);
+          if (!record) return;
+
+          // capture entry spot once and draw arrow
+          if (record.entry_spot == null && isFinite(parseFloat(c.entry_spot_display_value))) {
+            record.entry_spot = parseFloat(c.entry_spot_display_value);
             const entryCell = row.querySelector('.entry');
-            if (entryCell && entryCell.textContent === '—') entryCell.textContent = currentEntrySpot.toFixed(5);
-            el('pnlEntry').textContent = fmtNum(currentEntrySpot);
+            if (entryCell) entryCell.textContent = record.entry_spot.toFixed(5);
+
+            // add arrow to price chart
+            const lastLabel = timeLabels[timeLabels.length-1];
+            entryMarkers.push({ x: lastLabel, y: record.entry_spot, type: record.type });
+            priceChart.update('none');
           }
 
           const curSpot = isFinite(parseFloat(c.current_spot_display_value)) ? parseFloat(c.current_spot_display_value) : null;
-          if (!c.is_sold && c.status === 'open' && curSpot != null && currentEntrySpot != null) {
-            // WIN/LOSS side & live PnL
+          if (!c.is_sold && c.status === 'open' && curSpot != null && record.entry_spot != null) {
+            // live side & pnl
             let winSide = false;
-            if (currentContractType === 'CALL') winSide = curSpot >= currentEntrySpot;
-            if (currentContractType === 'PUT')  winSide = curSpot <= currentEntrySpot;
+            if (record.type === 'CALL') winSide = curSpot >= record.entry_spot;
+            if (record.type === 'PUT')  winSide = curSpot <= record.entry_spot;
 
-            const points = (currentContractType === 'CALL') ? (curSpot - currentEntrySpot) : (currentEntrySpot - curSpot);
+            const pointsSigned = (record.type==='PUT') ? (curSpot - record.entry_spot) * -1 : (curSpot - record.entry_spot);
+
             let livePnL = NaN;
-            if (isFinite(parseFloat(c.bid_price)) && isFinite(currentBuyPrice)) {
-              livePnL = parseFloat(c.bid_price) - currentBuyPrice;
+            if (isFinite(parseFloat(c.bid_price)) && isFinite(record.buy_price)) {
+              livePnL = parseFloat(c.bid_price) - record.buy_price;
             } else {
-              livePnL = points * FALLBACK_POINT_MULTIPLIER * (isFinite(currentBuyPrice)?Math.max(currentBuyPrice,1):1);
+              const mult = Math.max(record.buy_price || 1, 1);
+              livePnL = pointsSigned * mult;
             }
 
+            lastContractType = record.type;
             updatePnlBoxLive({
-              side: currentContractType,
-              entry: currentEntrySpot,
-              current: curSpot,
-              points: (currentContractType==='PUT' ? -points : points),
-              livePnL,
-              winSide
+              side: record.type, entry: record.entry_spot, current: curSpot,
+              points: pointsSigned, livePnL, winSide
             });
 
             const arrow = winSide ? '🔼' : '🔽';
             const label = winSide ? 'WIN side' : 'LOSS side';
-            beh.innerHTML = `${arrow} ${label} | Live: ${fmtNum(curSpot)} | Δ: ${((currentContractType==='PUT' ? -points : points)).toFixed(5)} | PnL: ${livePnL>=0?'<b style="color:#8df2b0">':''}${fmtUsd(livePnL)}${livePnL>=0?'</b>':''}`;
+            beh.innerHTML = `${arrow} ${label} | Live: ${curSpot.toFixed(5)} | Δ: ${pointsSigned.toFixed(5)} | PnL: ${livePnL>=0?'<b style="color:#8df2b0">':''}${(livePnL>=0?'+$':'-$')+Math.abs(livePnL).toFixed(2)}${livePnL>=0?'</b>':''}`;
             setTrendPill(winSide ? 'win' : 'loss', `${arrow} ${label}`);
           }
 
-          // ======= FINAL RESOLUTION (counts + balance update even on manual close) =======
+          // Final resolution (win/loss or manual close)
           const parsedProfit = isFinite(parseFloat(c.profit)) ? parseFloat(c.profit) : 0;
-
-          // Treat manual close (is_sold) as win if profit>=0, loss if <0
           const closedAsWin  = (c.status === 'won') || (c.is_sold && parsedProfit >= 0);
           const closedAsLoss = (c.status === 'lost') || (c.is_sold && parsedProfit < 0);
 
-          if (closedAsWin) {
-            row.className = 'win';
-            document.getElementById(`status-${c.contract_id}`).textContent = c.is_sold ? 'CLOSED (WIN)' : 'WON';
-            beh.textContent = `Entry: ${c.entry_spot_display_value}, Exit: ${c.current_spot_display_value ?? c.exit_spot_display_value ?? '-'}, PnL: $${parsedProfit.toFixed(2)}`;
-            document.getElementById('winSound').play();
-
-            stats.wins++; stats.profit += parsedProfit;
-            currentBalance += parsedProfit;
-            consecutiveWins++; consecutiveLosses = 0; currentStep = 0;
-
+          if (closedAsWin || closedAsLoss) {
             const exitSpot = isFinite(parseFloat(c.exit_spot_display_value)) ? parseFloat(c.exit_spot_display_value) :
                              (isFinite(parseFloat(c.current_spot_display_value)) ? parseFloat(c.current_spot_display_value) : null);
-            if (exitSpot != null && currentEntrySpot != null) {
-              const finalPointsSigned = (currentContractType==='PUT') ? (exitSpot - currentEntrySpot) * -1 : (exitSpot - currentEntrySpot);
+
+            if (closedAsWin) {
+              row.className = 'win';
+              document.getElementById(`status-${c.contract_id}`).textContent = c.is_sold ? 'CLOSED (WIN)' : 'WON';
+              document.getElementById('winSound').play();
+              stats.wins++; stats.profit += parsedProfit;
+              currentBalance += parsedProfit;
+              consecutiveWins++; consecutiveLosses = 0; currentStep = 0;
+            } else {
+              row.className = 'loss';
+              document.getElementById(`status-${c.contract_id}`).textContent = c.is_sold ? 'CLOSED (LOSS)' : 'LOST';
+              document.getElementById('lossSound').play();
+              stats.losses++; stats.profit += parsedProfit;
+              currentBalance += parsedProfit;
+              consecutiveLosses++; consecutiveWins = 0; currentStep++;
+            }
+
+            beh.textContent = `Entry: ${record.entry_spot ?? '-'}, Exit: ${exitSpot ?? '-'}, PnL: $${parsedProfit.toFixed(2)}`;
+
+            if (exitSpot != null && record.entry_spot != null) {
+              const finalPointsSigned = (record.type==='PUT') ? (exitSpot - record.entry_spot) * -1 : (exitSpot - record.entry_spot);
               updatePnlBoxFinal({
-                entry: currentEntrySpot,
+                entry: record.entry_spot,
                 exit: exitSpot,
                 points: finalPointsSigned,
                 finalPnL: parsedProfit
               });
-              pnlBox().classList.remove('loss'); pnlBox().classList.add('win');
+              pnlBox().classList.remove('loss','win');
+              pnlBox().classList.add(closedAsWin ? 'win' : 'loss');
             }
 
-            if (!c.is_sold && consecutiveWins >= 2) { // keep your existing pause rule for natural wins
+            // rotation/pause rules (kept)
+            if (closedAsWin && !c.is_sold && consecutiveWins >= 2) {
               autoRunning = false;
               showWarning("⏸ Paused 5 min after 2 consecutive wins");
               setTimeout(() => { autoRunning = true; consecutiveWins = 0; document.getElementById('warningBanner').style.display = 'none'; }, 5 * 60 * 1000);
             }
-            updateStake();
-          } else if (closedAsLoss) {
-            row.className = 'loss';
-            document.getElementById(`status-${c.contract_id}`).textContent = c.is_sold ? 'CLOSED (LOSS)' : 'LOST';
-            beh.textContent = `Entry: ${c.entry_spot_display_value}, Exit: ${c.current_spot_display_value ?? c.exit_spot_display_value ?? '-'}, PnL: $${parsedProfit.toFixed(2)}`;
-            document.getElementById('lossSound').play();
-
-            stats.losses++; stats.profit += parsedProfit;
-            currentBalance += parsedProfit;
-            consecutiveLosses++; consecutiveWins = 0; currentStep++;
-
-            const exitSpot = isFinite(parseFloat(c.exit_spot_display_value)) ? parseFloat(c.exit_spot_display_value) :
-                             (isFinite(parseFloat(c.current_spot_display_value)) ? parseFloat(c.current_spot_display_value) : null);
-            if (exitSpot != null && currentEntrySpot != null) {
-              const finalPointsSigned = (currentContractType==='PUT') ? (exitSpot - currentEntrySpot) * -1 : (exitSpot - currentEntrySpot);
-              updatePnlBoxFinal({
-                entry: currentEntrySpot,
-                exit: exitSpot,
-                points: finalPointsSigned,
-                finalPnL: parsedProfit
-              });
-              pnlBox().classList.remove('win'); pnlBox().classList.add('loss');
+            if (closedAsLoss) {
+              const idx = markets.indexOf(currentSymbol);
+              const next = markets[(idx + 1) % markets.length];
+              const ms = document.getElementById('marketSelect'); if(ms){ ms.value = next; }
+              subscribeMarket(next);
+              let pauseTime = 0;
+              if (consecutiveLosses === 2) pauseTime = 2 * 60 * 1000;
+              else if (consecutiveLosses === 3) pauseTime = 5 * 60 * 1000;
+              else if (consecutiveLosses === 4) pauseTime = 10 * 60 * 1000;
+              else if (consecutiveLosses >= 5) pauseTime = 20 * 60 * 1000;
+              autoRunning = false;
+              showWarning(`⏸ Paused ${Math.round(pauseTime/60000)} min after ${consecutiveLosses} losses`);
+              autoResumeTimeout = setTimeout(() => {
+                autoRunning = true; autoResumeTimeout = null; document.getElementById('warningBanner').style.display = 'none';
+              }, pauseTime);
             }
 
-            // loss-handling rotation/pause (kept as-is)
-            const idx = markets.indexOf(currentSymbol);
-            const next = markets[(idx + 1) % markets.length];
-            const ms = document.getElementById('marketSelect'); if(ms){ ms.value = next; }
-            subscribeMarket(next);
-            let pauseTime = 0;
-            if (consecutiveLosses === 2) pauseTime = 2 * 60 * 1000;
-            else if (consecutiveLosses === 3) pauseTime = 5 * 60 * 1000;
-            else if (consecutiveLosses === 4) pauseTime = 10 * 60 * 1000;
-            else if (consecutiveLosses >= 5) pauseTime = 20 * 60 * 1000;
-            autoRunning = false;
-            showWarning(`⏸ Paused ${Math.round(pauseTime/60000)} min after ${consecutiveLosses} losses`);
-            autoResumeTimeout = setTimeout(() => {
-              autoRunning = true; autoResumeTimeout = null; document.getElementById('warningBanner').style.display = 'none'; doTrade('CALL');
-            }, pauseTime);
-            updateStake();
-          }
-
-          // finalize/cleanup when sold or resolved
-          if (c.is_sold || ['won','lost'].includes(c.status)) {
-            openTrade = false;
-            currentContractId = null;
-            setTimeout(()=>{
-              currentContractType = null;
-              currentEntrySpot = null;
-              currentBuyPrice = null;
-            }, 1500);
-
-            // ===== live balance & counters reflect immediately =====
+            // finalize
             document.getElementById('balance').textContent = currentBalance.toFixed(2);
             syncInfoPills();
             updateStats();
-            setTrendPill('wait', 'No open trade');
+            activeContracts.delete(c.contract_id);
+            if (activeContracts.size === 0) setTrendPill('wait', 'No open trade');
           }
         }
       };
@@ -842,21 +905,25 @@
       initCharts();
       setupWS();
 
+      // auto-run
       document.getElementById('autoRunBtn').onclick = () => {
         autoRunning = true;
-        document.getElementById('signalStrength').textContent = 'Auto-run active';
+        const s = document.getElementById('signalStrength');
+        s.classList.add('dots');
+        s.textContent = 'Signal processing';
       };
       document.getElementById('stopBtn').onclick = () => { autoRunning = false; };
 
-      // manual trades
-      document.getElementById('btnBuyCall').onclick = ()=>{ if(!openTrade){ doTrade('CALL', true); } };
-      document.getElementById('btnBuyPut').onclick  = ()=>{ if(!openTrade){ doTrade('PUT',  true); } };
+      // manual trades (open multiple at once)
+      document.getElementById('btnBuyCall').onclick = ()=>{ multiBuy('CALL'); };
+      document.getElementById('btnBuyPut').onclick  = ()=>{ multiBuy('PUT');  };
 
-      // close open trade mid-contract
+      // close all open trades
       document.getElementById('closeBtn').onclick = ()=>{
-        if (openTrade && currentContractId){
-          ws.send(JSON.stringify({ sell: currentContractId, price: 0 }));
-          // resolution handled via proposal_open_contract
+        if (activeContracts.size){
+          for (const id of activeContracts.keys()){
+            ws.send(JSON.stringify({ sell: id, price: 0 }));
+          }
         }
       };
 
