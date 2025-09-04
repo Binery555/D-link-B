@@ -179,7 +179,7 @@
       border:1px solid var(--stroke);
     }
 
-    /* ===== NEW: Live PnL overlay box on chart ===== */
+    /* ===== Live PnL overlay box ===== */
     .pnl-box{
       position:absolute; top:8px; left:8px;
       background:rgba(16,16,16,.9);
@@ -270,7 +270,7 @@
           <div class="chart-wrap">
             <div class="chart-box" id="tab-price">
               <canvas id="priceChart"></canvas>
-              <!-- ===== NEW: Live PnL BOX ===== -->
+              <!-- Live PnL BOX -->
               <div id="livePnLBox" class="pnl-box" style="display:none">
                 <div class="hdr">Live PnL</div>
                 <div class="row"><span>Side</span><span class="val" id="pnlSide">-</span></div>
@@ -312,8 +312,8 @@
                 <option value="10t">10 Ticks</option>
                 <option value="30s">30 Seconds</option>
                 <option value="1m">1 Minute</option>
-                <option value="5m">5 Minutes</option><!-- NEW -->
-                <option value="10m">10 Minutes</option><!-- NEW -->
+                <option value="5m">5 Minutes</option>
+                <option value="10m">10 Minutes</option>
               </select>
             </div>
           </div>
@@ -325,7 +325,7 @@
             <button class="btn btn-auto" id="autoRunBtn">Auto Run</button>
             <button class="btn btn-stop" id="stopBtn">Stop Auto</button>
           </div>
-          <button class="btn btn-stop" id="closeBtn" style="width:100%; margin-top:6px;">Close Open Trade</button><!-- NEW -->
+          <button class="btn btn-stop" id="closeBtn" style="width:100%; margin-top:6px;">Close Open Trade</button>
 
           <div style="margin-top:10px; font-size:12px; color:#aaa;">
             <div>Login ID: <b id="loginId_dup">-</b></div>
@@ -364,8 +364,6 @@
     <audio id="winSound" src="https://actions.google.com/sounds/v1/money/cash_register.ogg" preload="auto"></audio>
     <audio id="lossSound" src="https://actions.google.com/sounds/v1/alarms/buzz.ogg" preload="auto"></audio>
     <audio id="alertSound" src="https://actions.google.com/sounds/v1/alarms/winding_alarm_clock.ogg" preload="auto"></audio>
-
-    <!-- MT5-style crisp alarm for signals -->
     <audio id="signalSound" src="https://actions.google.com/sounds/v1/alarms/digital_watch_alarm_long.ogg" preload="auto"></audio>
   </div>
 
@@ -387,14 +385,13 @@
         currentBalance = 0,
         signalCooldown = false;
 
-    // ===== NEW: fields to drive live/final PnL box =====
+    // ===== fields to drive live/final PnL box =====
     let currentContractId = null;
     let currentContractType = null; // 'CALL' or 'PUT'
     let currentEntrySpot = null;
     let currentBuyPrice = null;     // buy_price (stake actually paid)
-    const FALLBACK_POINT_MULTIPLIER = 1.0; // fallback estimate: $ per point (if no bid_price)
+    const FALLBACK_POINT_MULTIPLIER = 1.0; // fallback estimate
 
-    // Keep a global for sidebar market watch
     const markets = ['R_10', 'R_25', 'R_50', 'R_75', 'R_100', 'R_10_1s', 'R_25_1s'];
     window.markets = markets;
 
@@ -418,7 +415,6 @@
     }
 
     /* ================== UI HELPERS ================== */
-    // Tabs (charts / terminal)
     document.addEventListener('click', (e)=>{
       const t = e.target;
       if(t.classList.contains('tab')){
@@ -459,7 +455,7 @@
       else pill.classList.add('wait');
     }
 
-    // ===== NEW: pnl-box helpers =====
+    // PnL box helpers
     const pnlBox = () => document.getElementById('livePnLBox');
     const el = id => document.getElementById(id);
     const fmtUsd = n => (isFinite(n) ? (n>=0?'+$':'-$') + Math.abs(n).toFixed(2) : '-');
@@ -549,7 +545,7 @@
       document.querySelectorAll('.mw-row').forEach(r=>{ r.style.background = (r.dataset.sym===sym)? '#1c1c1c' : 'transparent'; });
     }
 
-    // UPDATED: allow manual trades regardless of autoRunning
+    // Manual or auto trades
     function doTrade(type, manual=false) {
       if (openTrade) return;
       if (!manual && !autoRunning) return;
@@ -575,7 +571,7 @@
       currentContractId = null;
       currentContractType = type;
       currentEntrySpot = null;
-      currentBuyPrice = stake; // default; will override with real buy_price when available
+      currentBuyPrice = stake; // will override with true buy_price
       setTrendPill('wait', 'Opening...');
 
       // Show PnL box init
@@ -627,7 +623,6 @@
 
           detectRSISignal(price, rsi);
 
-          // Market Watch mock update
           const bid = price.toFixed(5);
           const ask = (price + 0.00010).toFixed(5);
           const row = document.querySelector(`.mw-row[data-sym="${msg.tick.symbol}"]`);
@@ -637,9 +632,7 @@
         if (msg.buy) {
           const c = msg.buy.contract_id;
           currentContractId = c;
-          // try capture true buy price if provided
           if (isFinite(parseFloat(msg.buy.buy_price))) currentBuyPrice = parseFloat(msg.buy.buy_price);
-          const stakeAmt = msg.echo_req.parameters.amount;
           const type = msg.echo_req.parameters.contract_type;
           const t = new Date().toLocaleTimeString();
           document.getElementById('tradeHistory').insertAdjacentHTML('afterbegin',
@@ -653,13 +646,7 @@
           ws.send(JSON.stringify({ proposal_open_contract: 1, contract_id: c, subscribe: 1 }));
           openTrade = true;
           stats.total++; updateStats();
-
-          // initialize pnl box side
           el('pnlSide').textContent = type;
-        }
-
-        if (msg.sell) {
-          // proposal_open_contract stream will handle the resolution state
         }
 
         if (msg.proposal_open_contract) {
@@ -668,10 +655,9 @@
           const beh = document.getElementById(`behavior-${c.contract_id}`);
           if (!row || !beh) return;
 
-          // cache entry spot as soon as we see it
+          // cache entry spot
           if (isFinite(parseFloat(c.entry_spot_display_value))) {
             currentEntrySpot = parseFloat(c.entry_spot_display_value);
-            // write entry price to table once
             const entryCell = row.querySelector('.entry');
             if (entryCell && entryCell.textContent === '—') entryCell.textContent = currentEntrySpot.toFixed(5);
             el('pnlEntry').textContent = fmtNum(currentEntrySpot);
@@ -685,13 +671,10 @@
             if (currentContractType === 'PUT')  winSide = curSpot <= currentEntrySpot;
 
             const points = (currentContractType === 'CALL') ? (curSpot - currentEntrySpot) : (currentEntrySpot - curSpot);
-
-            // Prefer indicative bid_price if available to compute true live PnL
             let livePnL = NaN;
             if (isFinite(parseFloat(c.bid_price)) && isFinite(currentBuyPrice)) {
               livePnL = parseFloat(c.bid_price) - currentBuyPrice;
             } else {
-              // fallback estimate from points (linear with a multiplier)
               livePnL = points * FALLBACK_POINT_MULTIPLIER * (isFinite(currentBuyPrice)?Math.max(currentBuyPrice,1):1);
             }
 
@@ -699,28 +682,34 @@
               side: currentContractType,
               entry: currentEntrySpot,
               current: curSpot,
-              points: (currentContractType==='PUT' ? -points : points), // signed Δ: positive = towards win
+              points: (currentContractType==='PUT' ? -points : points),
               livePnL,
               winSide
             });
 
             const arrow = winSide ? '🔼' : '🔽';
             const label = winSide ? 'WIN side' : 'LOSS side';
-            beh.innerHTML = `${arrow} ${label} | Live: ${fmtNum(curSpot)} | Δ: ${( (currentContractType==='PUT' ? -points : points) ).toFixed(5)} | PnL: ${livePnL>=0?'<b style="color:#8df2b0">':''}${fmtUsd(livePnL)}${livePnL>=0?'</b>':''}`;
+            beh.innerHTML = `${arrow} ${label} | Live: ${fmtNum(curSpot)} | Δ: ${((currentContractType==='PUT' ? -points : points)).toFixed(5)} | PnL: ${livePnL>=0?'<b style="color:#8df2b0">':''}${fmtUsd(livePnL)}${livePnL>=0?'</b>':''}`;
             setTrendPill(winSide ? 'win' : 'loss', `${arrow} ${label}`);
           }
 
-          // terminal resolution (final)
-          if (c.status === 'won') {
+          // ======= FINAL RESOLUTION (counts + balance update even on manual close) =======
+          const parsedProfit = isFinite(parseFloat(c.profit)) ? parseFloat(c.profit) : 0;
+
+          // Treat manual close (is_sold) as win if profit>=0, loss if <0
+          const closedAsWin  = (c.status === 'won') || (c.is_sold && parsedProfit >= 0);
+          const closedAsLoss = (c.status === 'lost') || (c.is_sold && parsedProfit < 0);
+
+          if (closedAsWin) {
             row.className = 'win';
-            document.getElementById(`status-${c.contract_id}`).textContent = 'WON';
-            beh.textContent = `Entry: ${c.entry_spot_display_value}, Exit: ${c.current_spot_display_value}, PnL: $${c.profit}`;
+            document.getElementById(`status-${c.contract_id}`).textContent = c.is_sold ? 'CLOSED (WIN)' : 'WON';
+            beh.textContent = `Entry: ${c.entry_spot_display_value}, Exit: ${c.current_spot_display_value ?? c.exit_spot_display_value ?? '-'}, PnL: $${parsedProfit.toFixed(2)}`;
             document.getElementById('winSound').play();
-            stats.wins++; stats.profit += parseFloat(c.profit);
-            currentBalance += parseFloat(c.profit);
+
+            stats.wins++; stats.profit += parsedProfit;
+            currentBalance += parsedProfit;
             consecutiveWins++; consecutiveLosses = 0; currentStep = 0;
 
-            // Final PnL box update
             const exitSpot = isFinite(parseFloat(c.exit_spot_display_value)) ? parseFloat(c.exit_spot_display_value) :
                              (isFinite(parseFloat(c.current_spot_display_value)) ? parseFloat(c.current_spot_display_value) : null);
             if (exitSpot != null && currentEntrySpot != null) {
@@ -729,24 +718,25 @@
                 entry: currentEntrySpot,
                 exit: exitSpot,
                 points: finalPointsSigned,
-                finalPnL: parseFloat(c.profit)
+                finalPnL: parsedProfit
               });
               pnlBox().classList.remove('loss'); pnlBox().classList.add('win');
             }
 
-            if (consecutiveWins >= 2) {
+            if (!c.is_sold && consecutiveWins >= 2) { // keep your existing pause rule for natural wins
               autoRunning = false;
               showWarning("⏸ Paused 5 min after 2 consecutive wins");
               setTimeout(() => { autoRunning = true; consecutiveWins = 0; document.getElementById('warningBanner').style.display = 'none'; }, 5 * 60 * 1000);
             }
             updateStake();
-          } else if (c.status === 'lost' || (c.is_sold && isFinite(parseFloat(c.profit)) && parseFloat(c.profit) < 0)) {
+          } else if (closedAsLoss) {
             row.className = 'loss';
             document.getElementById(`status-${c.contract_id}`).textContent = c.is_sold ? 'CLOSED (LOSS)' : 'LOST';
-            beh.textContent = `Entry: ${c.entry_spot_display_value}, Exit: ${c.current_spot_display_value}, PnL: $${c.profit}`;
+            beh.textContent = `Entry: ${c.entry_spot_display_value}, Exit: ${c.current_spot_display_value ?? c.exit_spot_display_value ?? '-'}, PnL: $${parsedProfit.toFixed(2)}`;
             document.getElementById('lossSound').play();
-            stats.losses++; stats.profit += parseFloat(c.profit);
-            currentBalance += parseFloat(c.profit);
+
+            stats.losses++; stats.profit += parsedProfit;
+            currentBalance += parsedProfit;
             consecutiveLosses++; consecutiveWins = 0; currentStep++;
 
             const exitSpot = isFinite(parseFloat(c.exit_spot_display_value)) ? parseFloat(c.exit_spot_display_value) :
@@ -757,11 +747,12 @@
                 entry: currentEntrySpot,
                 exit: exitSpot,
                 points: finalPointsSigned,
-                finalPnL: parseFloat(c.profit)
+                finalPnL: parsedProfit
               });
               pnlBox().classList.remove('win'); pnlBox().classList.add('loss');
             }
 
+            // loss-handling rotation/pause (kept as-is)
             const idx = markets.indexOf(currentSymbol);
             const next = markets[(idx + 1) % markets.length];
             const ms = document.getElementById('marketSelect'); if(ms){ ms.value = next; }
@@ -783,13 +774,13 @@
           if (c.is_sold || ['won','lost'].includes(c.status)) {
             openTrade = false;
             currentContractId = null;
-            // keep currentContractType/entry to show final box; reset after short delay
             setTimeout(()=>{
               currentContractType = null;
               currentEntrySpot = null;
               currentBuyPrice = null;
             }, 1500);
 
+            // ===== live balance & counters reflect immediately =====
             document.getElementById('balance').textContent = currentBalance.toFixed(2);
             syncInfoPills();
             updateStats();
@@ -845,31 +836,27 @@
     }
 
     function startTradingTool() {
-      // Fill market dropdown
       const ms = document.getElementById('marketSelect');
       markets.forEach(m => ms.append(new Option(m, m)));
-      // Build Market Watch sidebar
       buildMarketWatch();
-      // Init charts and WS
       initCharts();
       setupWS();
 
-      // Controls
       document.getElementById('autoRunBtn').onclick = () => {
         autoRunning = true;
         document.getElementById('signalStrength').textContent = 'Auto-run active';
       };
       document.getElementById('stopBtn').onclick = () => { autoRunning = false; };
 
-      // Manual trades NOW work even when auto is off
+      // manual trades
       document.getElementById('btnBuyCall').onclick = ()=>{ if(!openTrade){ doTrade('CALL', true); } };
       document.getElementById('btnBuyPut').onclick  = ()=>{ if(!openTrade){ doTrade('PUT',  true); } };
 
-      // Close open trade mid-contract (if sell is available)
+      // close open trade mid-contract
       document.getElementById('closeBtn').onclick = ()=>{
         if (openTrade && currentContractId){
           ws.send(JSON.stringify({ sell: currentContractId, price: 0 }));
-          // actual resolution will arrive via proposal_open_contract (is_sold)
+          // resolution handled via proposal_open_contract
         }
       };
 
